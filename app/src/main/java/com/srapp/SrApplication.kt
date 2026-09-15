@@ -2,6 +2,7 @@ package com.srapp
 
 import android.app.Application
 import com.srapp.core.data.SrDatabase
+import com.srapp.firebase.FirebaseManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -14,6 +15,9 @@ class SrApplication : Application() {
     val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     lateinit var database: SrDatabase
+        private set
+
+    lateinit var firebaseManager: FirebaseManager
         private set
 
     /**
@@ -29,6 +33,7 @@ class SrApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         database = SrDatabase.get(this)
+        firebaseManager = FirebaseManager.get(this)
         refreshBlocklistCache()
     }
 

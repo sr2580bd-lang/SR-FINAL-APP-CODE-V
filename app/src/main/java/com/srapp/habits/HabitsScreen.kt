@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -19,6 +20,8 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
+import com.srapp.audio.SoundscapeEngine
 import com.srapp.core.ui.components.PressScale
 import com.srapp.core.ui.components.SectionHeader
 import com.srapp.core.ui.motion.SrMotion
@@ -43,6 +46,8 @@ private fun defaultHabits() = listOf(
 
 @Composable
 fun HabitsScreen(repository: LocalRepository) {
+    val context = LocalContext.current
+    val soundscape = remember { SoundscapeEngine.get(context) }
     var habits by remember { mutableStateOf(defaultHabits()) }
     var heatmapValues by remember { mutableStateOf(List(91) { 0f }) }
     val scope = rememberCoroutineScope()
@@ -56,14 +61,35 @@ fun HabitsScreen(repository: LocalRepository) {
     val completed = habits.count { it.done }
     val progress = completed / habits.size.toFloat()
 
+    var showAddDialog by remember { mutableStateOf(false) }
+    var newHabitTitle by remember { mutableStateOf("") }
+
     Column(modifier = Modifier.fillMaxSize().padding(20.dp)) {
-        SectionHeader(title = "Today's Habits")
-        Spacer(Modifier.height(4.dp))
-        Text(
-            "$completed of ${habits.size} complete",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                SectionHeader(title = "Today's Habits")
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "$completed of ${habits.size} complete",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            IconButton(
+                onClick = {
+                    soundscape.playClick()
+                    showAddDialog = true
+                },
+                modifier = Modifier
+                    .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
+            ) {
+                Icon(Icons.Filled.Add, contentDescription = "Add Habit", tint = MaterialTheme.colorScheme.primary)
+            }
+        }
         Spacer(Modifier.height(10.dp))
         HabitProgressBar(progress)
         Spacer(Modifier.height(20.dp))
@@ -71,9 +97,17 @@ fun HabitsScreen(repository: LocalRepository) {
         LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.weight(1f)) {
             items(habits, key = { it.id }) { habit ->
                 HabitRow(habit) { toggled ->
-                    val completed = !toggled.done
-                    habits = habits.map { if (it.id == toggled.id) it.copy(done = completed) else it }
-                    scope.launch { runCatching { repository.toggleHabit(toggled.id, completed) } }
+                    val isChecked = !toggled.done
+                    if (isChecked) {
+                        soundscape.playTrophyFanfare()
+                    } else {
+                        soundscape.playClick()
+                    }
+                    habits = habits.map { if (it.id == toggled.id) it.copy(done = isChecked) else it }
+                    scope.launch {
+                        runCatching { repository.toggleHabit(toggled.id, isChecked) }
+                        runCatching { repository.syncWithFirebase() }
+                    }
                 }
             }
             item {
@@ -83,6 +117,42 @@ fun HabitsScreen(repository: LocalRepository) {
                 ContributionHeatmap(heatmapValues)
                 Spacer(Modifier.height(20.dp))
             }
+        }
+
+        if (showAddDialog) {
+            AlertDialog(
+                onDismissRequest = { showAddDialog = false },
+                title = { Text("New Daily Routine") },
+                text = {
+                    OutlinedTextField(
+                        value = newHabitTitle,
+                        onValueChange = { newHabitTitle = it },
+                        label = { Text("Routine Name") },
+                        placeholder = { Text("e.g. 10m Cold Shower") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            if (newHabitTitle.isNotBlank()) {
+                                val id = "custom_" + System.currentTimeMillis()
+                                habits = habits + HabitItem(id, newHabitTitle.trim(), false)
+                                newHabitTitle = ""
+                                showAddDialog = false
+                            }
+                        }
+                    ) {
+                        Text("Add")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showAddDialog = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
         }
     }
 }

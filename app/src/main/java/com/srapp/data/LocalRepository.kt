@@ -19,7 +19,14 @@ private val onboardingCompletedKey = booleanPreferencesKey("onboarding_completed
 
 class LocalRepository(private val application: SrApplication) {
     private val dao = application.database.blockingDao()
+    val firebaseManager = application.firebaseManager
+    val syncStatus = firebaseManager.syncStatus
+    val userProfile = firebaseManager.currentUserProfile
     val onboardingCompleted: Flow<Boolean> = application.localPreferences.data.map { it[onboardingCompletedKey] ?: false }
+
+    suspend fun syncWithFirebase(): Result<String> {
+        return firebaseManager.syncAll(application.database)
+    }
 
     suspend fun completeOnboarding() {
         application.localPreferences.edit { it[onboardingCompletedKey] = true }

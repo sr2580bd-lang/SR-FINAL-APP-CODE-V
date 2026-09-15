@@ -23,8 +23,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.srapp.audio.SoundscapeEngine
 import com.srapp.core.ui.components.GradientProgressRing
 import com.srapp.core.ui.components.PressScale
 import com.srapp.core.ui.theme.NeonCyan
@@ -52,6 +54,8 @@ private val categories = listOf(
 
 @Composable
 fun FocusScreen(repository: LocalRepository) {
+    val context = LocalContext.current
+    val soundscape = remember { SoundscapeEngine.get(context) }
     var activeCategory by remember { mutableStateOf<FocusCategory?>(null) }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -61,9 +65,21 @@ fun FocusScreen(repository: LocalRepository) {
             transitionSpec = { fadeIn() togetherWith fadeOut() }
         ) { active ->
             if (active == null) {
-                FocusCategoryPicker(onSelect = { activeCategory = it })
+                FocusCategoryPicker(
+                    onSelect = {
+                        soundscape.playChime()
+                        activeCategory = it
+                    }
+                )
             } else {
-                ActiveFocusSession(category = active, repository = repository, onEnd = { activeCategory = null })
+                ActiveFocusSession(
+                    category = active,
+                    repository = repository,
+                    onEnd = {
+                        soundscape.playTrophyFanfare()
+                        activeCategory = null
+                    }
+                )
             }
         }
     }
@@ -171,13 +187,35 @@ private fun ActiveFocusSession(category: FocusCategory, repository: LocalReposit
             }
         }
         Spacer(Modifier.height(32.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(
+                onClick = { remaining += 300 },
+                shape = RoundedCornerShape(12.dp),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+            ) {
+                Text("+5 min", style = MaterialTheme.typography.labelSmall)
+            }
+            OutlinedButton(
+                onClick = { remaining += 900 },
+                shape = RoundedCornerShape(12.dp),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+            ) {
+                Text("+15 min", style = MaterialTheme.typography.labelSmall)
+            }
+        }
+        Spacer(Modifier.height(20.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             OutlinedButton(onClick = { running = !running }, shape = RoundedCornerShape(16.dp)) {
                 Text(if (running) "Pause" else "Resume")
             }
             Button(
                 onClick = {
-                    sessionId?.let { id -> scope.launch { runCatching { repository.endFocus(id) } } }
+                    sessionId?.let { id ->
+                        scope.launch {
+                            runCatching { repository.endFocus(id) }
+                            runCatching { repository.syncWithFirebase() }
+                        }
+                    }
                     onEnd()
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.errorContainer),

@@ -35,7 +35,7 @@ class Converters {
 @Database(
     entities = [BlockedAppEntity::class, BlockAttemptEntity::class, StreakEntity::class, HabitEntity::class, FocusSessionEntity::class],
     version = 2,
-    exportSchema = true
+    exportSchema = false
 )
 @TypeConverters(Converters::class)
 abstract class SrDatabase : RoomDatabase() {

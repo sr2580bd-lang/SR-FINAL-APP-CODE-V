@@ -2,7 +2,9 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
+    id("org.jetbrains.kotlin.plugin.serialization")
     id("com.google.devtools.ksp") // for Room annotation processing
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -16,6 +18,11 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0-phase1"
+
+        val geminiApiKey = (project.findProperty("GEMINI_API_KEY") as? String)
+            ?: System.getenv("GEMINI_API_KEY")
+            ?: ""
+        buildConfigField("String", "GEMINI_API_KEY", "\"$geminiApiKey\"")
     }
 
     signingConfigs {
@@ -39,6 +46,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_21
@@ -46,6 +54,7 @@ android {
     }
     kotlinOptions {
         jvmTarget = "21"
+        freeCompilerArgs = freeCompilerArgs + listOf("-Xskip-metadata-version-check")
     }
 }
 
@@ -79,6 +88,21 @@ dependencies {
 
     // Security (encrypted prefs for accountability-partner contact info etc.)
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
+
+    // Firebase BOM & Services
+    implementation(platform("com.google.firebase:firebase-bom:34.17.0"))
+    implementation("com.google.firebase:firebase-auth")
+    implementation("com.google.firebase:firebase-firestore")
+    implementation("com.google.android.gms:play-services-auth:21.1.1")
+    implementation("androidx.credentials:credentials:1.5.0")
+    implementation("androidx.credentials:credentials-play-services-auth:1.5.0")
+
+    // Retrofit & Kotlinx Serialization for Gemini & Lyria APIs
+    implementation("com.squareup.retrofit2:retrofit:2.11.0")
+    implementation("com.squareup.retrofit2:converter-kotlinx-serialization:2.11.0")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
