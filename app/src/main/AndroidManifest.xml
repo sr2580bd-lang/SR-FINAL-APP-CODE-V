@@ -18,7 +18,8 @@
         android:name=".SrApplication"
         android:allowBackup="false"
         android:label="SR App"
-        android:icon="@drawable/ic_shield"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:theme="@style/Theme.SrApp"
         android:supportsRtl="true">
 

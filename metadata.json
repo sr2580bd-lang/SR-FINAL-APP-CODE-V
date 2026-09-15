@@ -1,0 +1,6 @@
+{
+  "name": "SR App",
+  "description": "Digital wellness, habit tracking, and screen time intervention app",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
