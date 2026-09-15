@@ -12,9 +12,9 @@ import androidx.compose.ui.graphics.Color
 
 // Base / surfaces — true near-black, not muddy grey, for OLED + "void" feel
 val VoidBlack = Color(0xFF060608)
-val VoidSurface = Color(0xFF0E0E14)
-val VoidSurfaceRaised = Color(0xFF16161F)
-val VoidSurfaceHigh = Color(0xFF1E1E2A)
+val VoidSurface = Color(0xFF111118)
+val VoidSurfaceRaised = Color(0xFF171722)
+val VoidSurfaceHigh = Color(0xFF1F1F2C)
 val VoidOutline = Color(0xFF2C2C3A)
 
 // Primary — electric violet (discipline / core brand)

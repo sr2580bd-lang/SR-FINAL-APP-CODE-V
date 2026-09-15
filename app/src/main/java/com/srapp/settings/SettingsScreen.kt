@@ -8,6 +8,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -37,7 +38,8 @@ enum class Strictness(val label: String, val description: String) {
 fun SettingsScreen(
     repository: LocalRepository? = null,
     onManageBlockedApps: () -> Unit = {},
-    onOpenAuthSync: () -> Unit = {}
+    onOpenAuthSync: () -> Unit = {},
+    onBack: () -> Unit = {}
 ) {
     var strictness by remember { mutableStateOf(Strictness.STANDARD) }
     val userProfile by repository?.userProfile?.collectAsState() ?: remember { mutableStateOf(null) }
@@ -48,12 +50,25 @@ fun SettingsScreen(
             .verticalScroll(rememberScrollState())
             .padding(20.dp)
     ) {
-        Text(
-            "Profile & Settings",
-            style = MaterialTheme.typography.headlineLarge,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onBackground
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(
+                    Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Back",
+                    tint = MaterialTheme.colorScheme.onBackground
+                )
+            }
+            Spacer(Modifier.width(4.dp))
+            Text(
+                "Profile & Settings",
+                style = MaterialTheme.typography.headlineLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+        }
         Spacer(Modifier.height(20.dp))
 
         // Account & Firebase Cloud Sync Card

@@ -37,6 +37,7 @@ import com.srapp.core.ui.components.GlassChip
 import com.srapp.core.ui.components.GradientCard
 import com.srapp.core.ui.components.PressScale
 import com.srapp.core.ui.theme.*
+import com.srapp.firebase.SyncStatus
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
@@ -48,6 +49,7 @@ fun DashboardScreen(
     levelTitle: String,
     habitsCompleted: Int,
     habitsTotal: Int,
+    syncStatus: SyncStatus? = null,
     onManageBlockedApps: () -> Unit,
     onPanicPressed: () -> Unit = {},
     onStartFocus: () -> Unit = {},
@@ -60,6 +62,19 @@ fun DashboardScreen(
     val context = LocalContext.current
     val soundscape = remember { SoundscapeEngine.get(context) }
     var showInterventionDialog by remember { mutableStateOf(false) }
+
+    val syncBadgeColor = when (syncStatus) {
+        is SyncStatus.Syncing -> SignalAmber
+        is SyncStatus.Success -> SuccessGreen
+        is SyncStatus.Error -> DangerRed
+        else -> NeonCyan
+    }
+    val syncBadgeLabel = when (syncStatus) {
+        is SyncStatus.Syncing -> "Syncing"
+        is SyncStatus.Success -> "Synced"
+        is SyncStatus.Error -> "Sync Error"
+        else -> "Sync"
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
@@ -140,18 +155,18 @@ fun DashboardScreen(
                                         modifier = Modifier
                                             .size(8.dp)
                                             .clip(CircleShape)
-                                            .background(SuccessGreen)
+                                            .background(syncBadgeColor)
                                     )
                                     Spacer(Modifier.width(6.dp))
                                     Icon(
                                         Icons.Filled.CloudSync,
                                         contentDescription = "Cloud Sync",
-                                        tint = NeonCyan,
+                                        tint = syncBadgeColor,
                                         modifier = Modifier.size(16.dp)
                                     )
                                     Spacer(Modifier.width(4.dp))
                                     Text(
-                                        "Sync",
+                                        syncBadgeLabel,
                                         style = MaterialTheme.typography.labelSmall,
                                         fontWeight = FontWeight.SemiBold,
                                         color = TextPrimary
@@ -163,7 +178,16 @@ fun DashboardScreen(
                 }
             }
 
-            item { StreakHeroCard(pornFreeStreakDays, longestStreakDays, level, levelTitle) }
+            item {
+                IronWillStreakHeroCard(
+                    days = pornFreeStreakDays,
+                    longestStreak = longestStreakDays,
+                    level = level,
+                    levelTitle = levelTitle,
+                    habitsCompleted = habitsCompleted,
+                    habitsTotal = habitsTotal
+                )
+            }
 
             // God-Tier Spotlight: Mental Fortress AI Card
             item {
@@ -393,59 +417,200 @@ private fun greeting(): String {
 }
 
 @Composable
-private fun StreakHeroCard(days: Int, longestStreak: Int, level: Int, levelTitle: String) {
-    val infiniteTransition = rememberInfiniteTransition(label = "flame_pulse")
+private fun IronWillStreakHeroCard(
+    days: Int,
+    longestStreak: Int,
+    level: Int,
+    levelTitle: String,
+    habitsCompleted: Int,
+    habitsTotal: Int
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "iron_will_glow")
     val glowAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.4f,
+        initialValue = 0.35f,
         targetValue = 0.85f,
         animationSpec = infiniteRepeatable(
-            animation = tween(2000, easing = EaseInOutCubic),
+            animation = tween(2200, easing = EaseInOutCubic),
             repeatMode = RepeatMode.Reverse
         ),
-        label = "glow_alpha"
+        label = "hero_glow"
     )
 
-    GradientCard(
-        colors = listOf(GradientVioletStart, GradientVioletEnd),
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(
-                1.5.dp,
-                Brush.horizontalGradient(
-                    listOf(
-                        NeonCyan.copy(alpha = glowAlpha),
-                        SignalAmber.copy(alpha = glowAlpha)
-                    )
-                ),
-                RoundedCornerShape(24.dp)
+    // Calculate level XP progression
+    val currentLevelXp = ((days * 20 + habitsCompleted * 15) % 100).coerceIn(0, 100)
+    val levelProgress = currentLevelXp / 100f
+    val animatedProgress by animateFloatAsState(
+        targetValue = levelProgress,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessLow),
+        label = "level_xp_progress"
+    )
+
+    Surface(
+        color = Color(0xFF111118),
+        shape = RoundedCornerShape(28.dp),
+        border = androidx.compose.foundation.BorderStroke(
+            1.5.dp,
+            Brush.linearGradient(
+                listOf(
+                    ElectricViolet.copy(alpha = glowAlpha),
+                    NeonCyan.copy(alpha = glowAlpha * 0.7f),
+                    ElectricViolet.copy(alpha = 0.25f)
+                )
             )
+        ),
+        modifier = Modifier.fillMaxWidth()
     ) {
-        Column {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(
-                    "🔥 PORN-FREE STREAK",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = Color.White.copy(alpha = 0.9f),
-                    fontWeight = FontWeight.Bold
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(
+                            ElectricViolet.copy(alpha = 0.16f),
+                            Color.Transparent
+                        ),
+                        radius = 450f
+                    )
                 )
-                GlassChip(text = "LVL $level · ${levelTitle.uppercase()}")
-            }
-            Spacer(Modifier.height(8.dp))
-            Row(verticalAlignment = Alignment.Bottom) {
-                CountUpText(targetValue = days, color = Color.White)
+                .padding(24.dp)
+        ) {
+            Column {
+                // Header row: Iron Will badge & Level indicator
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(30.dp)
+                                .clip(CircleShape)
+                                .background(ElectricVioletDim),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Filled.Shield,
+                                contentDescription = null,
+                                tint = ElectricVioletBright,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            "IRON WILL",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = Color.White,
+                            fontWeight = FontWeight.ExtraBold,
+                            letterSpacing = 1.5.sp
+                        )
+                    }
+
+                    Surface(
+                        color = VoidSurfaceHigh,
+                        shape = RoundedCornerShape(50),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, ElectricViolet.copy(alpha = 0.45f))
+                    ) {
+                        Text(
+                            "LVL $level · ${levelTitle.uppercase()}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = NeonCyanBright,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(18.dp))
+
+                // Streak Counter with Extra-Large Typography
+                Row(
+                    verticalAlignment = Alignment.Bottom,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    CountUpText(
+                        targetValue = days,
+                        style = MaterialTheme.typography.displayLarge.copy(
+                            fontSize = 76.sp,
+                            fontWeight = FontWeight.Black,
+                            lineHeight = 76.sp,
+                            letterSpacing = (-2).sp
+                        ),
+                        color = Color.White
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Column(modifier = Modifier.padding(bottom = 12.dp)) {
+                        Text(
+                            if (days == 1) "DAY CLEAN" else "DAYS CLEAN",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = ElectricVioletBright,
+                            letterSpacing = 1.sp
+                        )
+                        Text(
+                            "Personal Record: $longestStreak d",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TextSecondary
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(20.dp))
+
+                // Level Progress Bar
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "Level Progress",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = TextSecondary,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            "$currentLevelXp / 100 XP (${(levelProgress * 100).roundToInt()}%)",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = NeonCyanBright,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+
+                    // Progress Track & Indicator
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(10.dp)
+                            .clip(RoundedCornerShape(50))
+                            .background(VoidSurfaceHigh)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(animatedProgress.coerceIn(0.04f, 1f))
+                                .fillMaxHeight()
+                                .clip(RoundedCornerShape(50))
+                                .background(
+                                    Brush.horizontalGradient(
+                                        listOf(ElectricViolet, NeonCyan)
+                                    )
+                                )
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(14.dp))
+
                 Text(
-                    if (days == 1) " day clean" else " days clean",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = Color.White.copy(alpha = 0.9f),
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(bottom = 10.dp, start = 4.dp)
+                    "Each consecutive day strengthens myelination and dopamine receptor sensitivity.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextSecondary,
+                    lineHeight = 18.sp
                 )
             }
-            Text(
-                "Longest streak: $longestStreak days. Every urge defeated builds neuroplastic strength.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = Color.White.copy(alpha = 0.82f)
-            )
         }
     }
 }
@@ -473,8 +638,8 @@ private fun QuickActionButton(modifier: Modifier = Modifier, label: String, onCl
 }
 
 /**
- * Modern gesture-based Slide-to-Activate Emergency Panic button.
- * Prevents accidental taps while providing tactical slide gesture feedback.
+ * Modern gesture-based Slide-to-Activate Emergency Panic button using Electric Violet containers,
+ * flanked by breathable micro-interactions and status telemetry.
  */
 @Composable
 private fun SlideToPanicBar(
@@ -492,62 +657,149 @@ private fun SlideToPanicBar(
 
     val progress = (animatedOffsetX / maxDragPx).coerceIn(0f, 1f)
 
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(64.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .background(
-                Brush.horizontalGradient(
-                    listOf(
-                        DangerRed.copy(alpha = 0.15f + progress * 0.45f),
-                        DangerRed.copy(alpha = 0.25f + progress * 0.65f)
-                    )
-                )
-            )
-            .border(1.dp, DangerRed.copy(alpha = 0.4f + progress * 0.5f), RoundedCornerShape(20.dp))
-            .padding(horizontal = 6.dp),
-        contentAlignment = Alignment.CenterStart
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // Center Prompt Text
-        Text(
-            text = if (progress > 0.85f) "RELEASE TO ACTIVATE SOS" else "SLIDE FOR SOS INTERVENTION >>>",
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.Bold,
-            color = if (progress > 0.6f) Color.White else DangerRed,
-            textAlign = TextAlign.Center,
+        // Breathable micro-details top flank
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 48.dp)
-        )
+                .padding(horizontal = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // Breathing pulse indicator
+                val pulseTransition = rememberInfiniteTransition(label = "pulse_dot")
+                val pulseAlpha by pulseTransition.animateFloat(
+                    initialValue = 0.3f,
+                    targetValue = 1f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(1000, easing = EaseInOutCubic),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "pulse_alpha"
+                )
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(ElectricViolet.copy(alpha = pulseAlpha))
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    "EMERGENCY PROTOCOL",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = ElectricVioletBright,
+                    letterSpacing = 1.sp
+                )
+            }
 
-        // Draggable Thumb
+            Text(
+                "90s URGE DEFLECTION",
+                style = MaterialTheme.typography.labelSmall,
+                color = TextSecondary,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+
+        // Full-width Electric Violet container
         Box(
             modifier = Modifier
-                .offset { IntOffset(animatedOffsetX.roundToInt(), 0) }
-                .size(52.dp)
-                .clip(CircleShape)
-                .background(DangerRed)
-                .draggable(
-                    orientation = Orientation.Horizontal,
-                    state = rememberDraggableState { delta ->
-                        offsetX = (offsetX + delta).coerceIn(0f, maxDragPx)
-                    },
-                    onDragStopped = {
-                        if (offsetX >= maxDragPx * 0.75f) {
-                            onActivated()
-                        }
-                        offsetX = 0f
-                    }
+                .fillMaxWidth()
+                .height(64.dp)
+                .clip(RoundedCornerShape(22.dp))
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(
+                            ElectricVioletDim.copy(alpha = 0.45f + progress * 0.35f),
+                            ElectricViolet.copy(alpha = 0.25f + progress * 0.55f),
+                            ElectricVioletDim.copy(alpha = 0.35f + progress * 0.45f)
+                        )
+                    )
                 )
-                .testTag("panic_drag_thumb"),
-            contentAlignment = Alignment.Center
+                .border(
+                    1.5.dp,
+                    Brush.horizontalGradient(
+                        listOf(
+                            ElectricViolet.copy(alpha = 0.5f + progress * 0.5f),
+                            NeonCyan.copy(alpha = 0.4f + progress * 0.5f)
+                        )
+                    ),
+                    RoundedCornerShape(22.dp)
+                )
+                .clickable { onActivated() }
+                .padding(horizontal = 6.dp),
+            contentAlignment = Alignment.CenterStart
         ) {
-            Icon(
-                Icons.Filled.Warning,
-                contentDescription = "Slide to Panic",
-                tint = Color.White,
-                modifier = Modifier.size(24.dp)
+            // Center Prompt Text inside container
+            Text(
+                text = if (progress > 0.82f) "RELEASE FOR IMMEDIATE SOS" else "SLIDE TO PANIC INTERVENTION >>>",
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.ExtraBold,
+                color = if (progress > 0.6f) Color.White else ElectricVioletBright,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 56.dp)
+            )
+
+            // Draggable Thumb Container in Electric Violet
+            Box(
+                modifier = Modifier
+                    .offset { IntOffset(animatedOffsetX.roundToInt(), 0) }
+                    .size(52.dp)
+                    .clip(CircleShape)
+                    .background(
+                        Brush.linearGradient(
+                            listOf(ElectricVioletBright, ElectricViolet)
+                        )
+                    )
+                    .border(1.5.dp, Color.White.copy(alpha = 0.85f), CircleShape)
+                    .draggable(
+                        orientation = Orientation.Horizontal,
+                        state = rememberDraggableState { delta ->
+                            offsetX = (offsetX + delta).coerceIn(0f, maxDragPx)
+                        },
+                        onDragStopped = {
+                            if (offsetX >= maxDragPx * 0.75f) {
+                                onActivated()
+                            }
+                            offsetX = 0f
+                        }
+                    )
+                    .testTag("panic_drag_thumb"),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Filled.Bolt,
+                    contentDescription = "Slide to Panic",
+                    tint = Color.White,
+                    modifier = Modifier.size(26.dp)
+                )
+            }
+        }
+
+        // Breathable micro-details bottom flank
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                "🔒 Instant Trigger Lockdown",
+                style = MaterialTheme.typography.labelSmall,
+                color = TextSecondary,
+                fontSize = 11.sp
+            )
+            Text(
+                "🫁 4-7-8 Somatic Reset",
+                style = MaterialTheme.typography.labelSmall,
+                color = TextSecondary,
+                fontSize = 11.sp
             )
         }
     }
@@ -668,13 +920,13 @@ private fun EmergencyInterventionDialog(
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
-                                "$secondsLeft",
+                                if (currentCycle <= 3) "$secondsLeft" else "✓",
                                 style = MaterialTheme.typography.displayMedium,
-                                color = NeonCyan,
+                                color = if (currentCycle <= 3) NeonCyan else SuccessGreen,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                "sec",
+                                if (currentCycle <= 3) "sec" else "grounded",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = Color.White.copy(alpha = 0.7f)
                             )
@@ -686,13 +938,13 @@ private fun EmergencyInterventionDialog(
                     Text(
                         phase,
                         style = MaterialTheme.typography.titleMedium,
-                        color = SignalAmber,
+                        color = if (currentCycle <= 3) SignalAmber else SuccessGreen,
                         fontWeight = FontWeight.SemiBold,
                         textAlign = TextAlign.Center
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "Cycle $currentCycle of 3",
+                        if (currentCycle <= 3) "Cycle $currentCycle of 3" else "Protocol Complete · Grounded",
                         style = MaterialTheme.typography.bodySmall,
                         color = Color.White.copy(alpha = 0.6f)
                     )

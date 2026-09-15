@@ -3,19 +3,23 @@ package com.srapp.data
 import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.srapp.SrApplication
 import com.srapp.blocking.data.FocusSessionEntity
 import com.srapp.blocking.data.HabitEntity
+import com.srapp.blocking.data.StreakEntity
 import com.srapp.blocking.data.StreakType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.time.LocalDate
+import kotlin.math.roundToInt
 
 private val Context.localPreferences by preferencesDataStore(name = "sr_local_preferences")
 private val onboardingCompletedKey = booleanPreferencesKey("onboarding_completed")
+private val customHabitsKey = stringSetPreferencesKey("custom_habits_catalog")
 
 class LocalRepository(private val application: SrApplication) {
     private val dao = application.database.blockingDao()
@@ -23,6 +27,21 @@ class LocalRepository(private val application: SrApplication) {
     val syncStatus = firebaseManager.syncStatus
     val userProfile = firebaseManager.currentUserProfile
     val onboardingCompleted: Flow<Boolean> = application.localPreferences.data.map { it[onboardingCompletedKey] ?: false }
+
+    val customHabits: Flow<List<Pair<String, String>>> = application.localPreferences.data.map { prefs ->
+        val raw = prefs[customHabitsKey] ?: emptySet()
+        raw.mapNotNull { entry ->
+            val parts = entry.split(":::", limit = 2)
+            if (parts.size == 2) parts[0] to parts[1] else null
+        }
+    }
+
+    suspend fun addCustomHabit(id: String, title: String) {
+        application.localPreferences.edit { prefs ->
+            val current = prefs[customHabitsKey] ?: emptySet()
+            prefs[customHabitsKey] = current + "$id:::$title"
+        }
+    }
 
     suspend fun syncWithFirebase(): Result<String> {
         return firebaseManager.syncAll(application.database)
@@ -37,29 +56,91 @@ class LocalRepository(private val application: SrApplication) {
     }
 
     suspend fun dashboard(): DashboardData = withContext(Dispatchers.IO) {
-        val habits = dao.getHabitsForDate(LocalDate.now().toString())
-        val streak = dao.getStreak(StreakType.PORN_FREE)
+        val todayStr = LocalDate.now().toString()
+        val habits = dao.getHabitsForDate(todayStr)
+        var streak = dao.getStreak(StreakType.PORN_FREE)
+
+        if (streak == null) {
+            val initialStreak = StreakEntity(
+                streakType = StreakType.PORN_FREE,
+                currentStreak = 1,
+                longestStreak = 1,
+                lastUpdated = System.currentTimeMillis(),
+                totalRelapses = 0
+            )
+            dao.upsertStreak(initialStreak)
+            streak = initialStreak
+        }
+
+        // Calculate real focus hours this week from database
+        val now = System.currentTimeMillis()
+        val dayMs = 24 * 60 * 60 * 1000L
+        val recentSessions = dao.completedFocusSessionsSince(now - 7 * dayMs)
+        val focusMinutesThisWeek = recentSessions.sumOf { it.durationMinutes ?: 0 }
+        val focusHoursThisWeek = ((focusMinutesThisWeek / 60.0) * 10.0).roundToInt() / 10.0
+
+        // Calculate all-time XP & dynamic Level
+        val allHabits = dao.getAllHabits()
+        val totalCompletedHabits = allHabits.count { it.completed }
+        val allFocusSessions = dao.completedFocusSessionsSince(0)
+        val allFocusMinutes = allFocusSessions.sumOf { it.durationMinutes ?: 0 }
+
+        val currentStreakDays = streak.currentStreak.coerceAtLeast(1)
+        val xp = (currentStreakDays * 60) + (totalCompletedHabits * 25) + (allFocusMinutes * 2)
+        val level = (1 + (xp / 300)).coerceAtLeast(1)
+
+        val levelTitle = when {
+            level <= 2 -> "Seeker"
+            level <= 4 -> "Guardian"
+            level <= 6 -> "Iron Will"
+            level <= 9 -> "Sovereign"
+            else -> "Ascendant"
+        }
+
+        val totalAchievements = (if (currentStreakDays >= 1) 1 else 0) +
+                (if (currentStreakDays >= 3) 1 else 0) +
+                (if (currentStreakDays >= 7) 1 else 0) +
+                (if (currentStreakDays >= 14) 1 else 0) +
+                (if (currentStreakDays >= 30) 1 else 0) +
+                (if (allFocusMinutes >= 60) 1 else 0) +
+                (if (totalCompletedHabits >= 10) 1 else 0)
+
         DashboardData(
-            pornFreeStreak = streak?.currentStreak ?: 0,
-            longestStreak = streak?.longestStreak ?: 0,
-            level = 1,
-            levelTitle = "Wanderer",
-            xp = 0,
+            pornFreeStreak = currentStreakDays,
+            longestStreak = streak.longestStreak.coerceAtLeast(currentStreakDays),
+            level = level,
+            levelTitle = levelTitle,
+            xp = xp,
             habitsCompleted = habits.count { it.completed },
             habitsTotal = 10,
-            focusHoursThisWeek = 0.0,
-            totalAchievements = 0
+            focusHoursThisWeek = focusHoursThisWeek,
+            totalAchievements = totalAchievements
         )
     }
 
     suspend fun toggleHabit(type: String, completed: Boolean) = withContext(Dispatchers.IO) {
+        val todayStr = LocalDate.now().toString()
         dao.upsertHabit(
             HabitEntity(
-                date = LocalDate.now().toString(),
+                date = todayStr,
                 habitType = type,
                 completed = completed
             )
         )
+
+        // If toggling the primary sobriety habit "no_porn", update streak accordingly
+        if (type == "no_porn") {
+            val streak = dao.getStreak(StreakType.PORN_FREE)
+            if (streak != null) {
+                if (completed) {
+                    val updated = streak.copy(
+                        currentStreak = streak.currentStreak.coerceAtLeast(1),
+                        lastUpdated = System.currentTimeMillis()
+                    )
+                    dao.upsertStreak(updated)
+                }
+            }
+        }
     }
 
     suspend fun startFocus(category: String): FocusSessionData = withContext(Dispatchers.IO) {

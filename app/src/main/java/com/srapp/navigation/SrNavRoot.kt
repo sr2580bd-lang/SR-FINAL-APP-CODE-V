@@ -1,6 +1,6 @@
 package com.srapp.navigation
 
-import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -29,6 +29,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,7 +37,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -84,7 +88,123 @@ private val bottomDestinations = listOf(
     SrDestination.Habits
 )
 
-/** Root composable: bottom-nav Scaffold wiring together every top-level screen. */
+/**
+ * Progressive blur top scrim: creates a gradual optical blur and ambient falloff at the top edge
+ * so content scrolling beneath the status bar transitions with smooth visual dissipation.
+ */
+@Composable
+fun ProgressiveBlurTop(
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(72.dp)
+    ) {
+        // Multi-tier progressive blur layer
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .blur(radius = 16.dp, edgeTreatment = BlurredEdgeTreatment.Unbounded)
+                .background(
+                    Brush.verticalGradient(
+                        colorStops = arrayOf(
+                            0.00f to VoidBlack.copy(alpha = 0.95f),
+                            0.35f to VoidBlack.copy(alpha = 0.70f),
+                            0.70f to VoidBlack.copy(alpha = 0.30f),
+                            1.00f to Color.Transparent
+                        )
+                    )
+                )
+        )
+        // Optical gradient layer for uniform falloff
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colorStops = arrayOf(
+                            0.00f to VoidBlack.copy(alpha = 0.90f),
+                            0.25f to VoidBlack.copy(alpha = 0.65f),
+                            0.60f to VoidBlack.copy(alpha = 0.25f),
+                            1.00f to Color.Transparent
+                        )
+                    )
+                )
+        )
+    }
+}
+
+/**
+ * Progressive blur bottom scrim: creates an authentic multi-stage progressive blur gradient
+ * behind and surrounding the floating navigation dock. Content scrolling underneath
+ * progressively blurs and diffuses smoothly into the Void Black canvas.
+ */
+@Composable
+fun ProgressiveBlurBottom(
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(140.dp)
+    ) {
+        // Progressive blur layer 1: wide Gaussian blur field
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .blur(radius = 20.dp, edgeTreatment = BlurredEdgeTreatment.Unbounded)
+                .background(
+                    Brush.verticalGradient(
+                        colorStops = arrayOf(
+                            0.00f to Color.Transparent,
+                            0.20f to VoidBlack.copy(alpha = 0.20f),
+                            0.50f to VoidBlack.copy(alpha = 0.60f),
+                            0.80f to VoidBlack.copy(alpha = 0.88f),
+                            1.00f to VoidBlack
+                        )
+                    )
+                )
+        )
+        // Progressive blur layer 2: mid-frequency blur field for smooth dispersion
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .blur(radius = 8.dp, edgeTreatment = BlurredEdgeTreatment.Unbounded)
+                .background(
+                    Brush.verticalGradient(
+                        colorStops = arrayOf(
+                            0.00f to Color.Transparent,
+                            0.30f to VoidBlack.copy(alpha = 0.15f),
+                            0.65f to VoidBlack.copy(alpha = 0.55f),
+                            0.90f to VoidBlack.copy(alpha = 0.92f),
+                            1.00f to VoidBlack
+                        )
+                    )
+                )
+        )
+        // Progressive fine-step scrim overlay
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colorStops = arrayOf(
+                            0.00f to Color.Transparent,
+                            0.15f to VoidBlack.copy(alpha = 0.08f),
+                            0.35f to VoidBlack.copy(alpha = 0.25f),
+                            0.55f to VoidBlack.copy(alpha = 0.55f),
+                            0.75f to VoidBlack.copy(alpha = 0.82f),
+                            0.92f to VoidBlack.copy(alpha = 0.96f),
+                            1.00f to VoidBlack
+                        )
+                    )
+                )
+        )
+    }
+}
+
+/** Root composable: floating glassmorphic dock wiring together every top-level screen. */
 @Composable
 fun SrNavRoot(repository: LocalRepository) {
     val navController = rememberNavController()
@@ -96,19 +216,21 @@ fun SrNavRoot(repository: LocalRepository) {
         dashboard = runCatching { repository.dashboard() }.getOrNull()
     }
 
-    Scaffold(
-        containerColor = VoidBlack,
-        bottomBar = {
-            val route = currentBackStackEntry?.destination?.route
-            if (route != "auth_sync" && route != "blocked-apps" && route != "stats" && route != "profile") {
-                SrBottomBar(navController)
-            }
-        }
-    ) { inner ->
+    val route = currentBackStackEntry?.destination?.route
+    val showFloatingDock = route != "auth_sync" && route != "blocked-apps"
+    val syncStatus by repository.syncStatus.collectAsState(null)
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(VoidBlack)
+    ) {
         NavHost(
             navController = navController,
             startDestination = SrDestination.Home.route,
-            modifier = Modifier.padding(inner)
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(bottom = if (showFloatingDock) 84.dp else 0.dp)
         ) {
             composable(SrDestination.Home.route) {
                 DashboardScreen(
@@ -118,6 +240,7 @@ fun SrNavRoot(repository: LocalRepository) {
                     levelTitle = dashboard?.levelTitle ?: "Wanderer",
                     habitsCompleted = dashboard?.habitsCompleted ?: 0,
                     habitsTotal = dashboard?.habitsTotal ?: 10,
+                    syncStatus = syncStatus,
                     onManageBlockedApps = {
                         navController.navigate("blocked-apps")
                     },
@@ -156,12 +279,18 @@ fun SrNavRoot(repository: LocalRepository) {
             composable(SrDestination.Soundscape.route) { SoundscapeStudioScreen() }
             composable(SrDestination.Focus.route) { FocusScreen(repository) }
             composable(SrDestination.Habits.route) { HabitsScreen(repository) }
-            composable(SrDestination.Stats.route) { StatsScreen(repository) }
+            composable(SrDestination.Stats.route) {
+                StatsScreen(
+                    repository = repository,
+                    onBack = { navController.popBackStack() }
+                )
+            }
             composable(SrDestination.Profile.route) {
                 SettingsScreen(
                     repository = repository,
                     onManageBlockedApps = { navController.navigate("blocked-apps") },
-                    onOpenAuthSync = { navController.navigate("auth_sync") }
+                    onOpenAuthSync = { navController.navigate("auth_sync") },
+                    onBack = { navController.popBackStack() }
                 )
             }
             composable("blocked-apps") { BlockedAppsScreen(onBack = { navController.popBackStack() }) }
@@ -172,28 +301,50 @@ fun SrNavRoot(repository: LocalRepository) {
                 )
             }
         }
+
+        // Progressive Blur Top Scrim
+        ProgressiveBlurTop(
+            modifier = Modifier.align(Alignment.TopCenter)
+        )
+
+        // Floating Glassmorphic Navigation Dock with Progressive Blur Bottom Scrim
+        if (showFloatingDock) {
+            // Progressive blur scrim positioned behind the dock
+            ProgressiveBlurBottom(
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
+
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 10.dp)
+                    .windowInsetsPadding(WindowInsets.navigationBars)
+            ) {
+                FloatingGlassmorphicDock(navController)
+            }
+        }
     }
 }
 
 @Composable
-private fun SrBottomBar(navController: NavHostController) {
+private fun FloatingGlassmorphicDock(navController: NavHostController) {
     val context = LocalContext.current
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination
 
     Surface(
-        color = VoidSurface.copy(alpha = 0.95f),
-        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, VoidOutline.copy(alpha = 0.6f)),
-        modifier = Modifier
-            .fillMaxWidth()
-            .windowInsetsPadding(WindowInsets.navigationBars)
+        color = Color(0xFF111118).copy(alpha = 0.92f),
+        shape = RoundedCornerShape(32.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, VoidOutline.copy(alpha = 0.75f)),
+        shadowElevation = 16.dp,
+        modifier = Modifier.fillMaxWidth()
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 6.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.SpaceAround,
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             bottomDestinations.forEach { dest ->

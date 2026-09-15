@@ -5,20 +5,20 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.unit.dp
 import com.srapp.core.ui.components.CountUpText
@@ -28,22 +28,48 @@ import com.srapp.core.ui.motion.SrMotion
 import com.srapp.core.ui.theme.GradientVioletEnd
 import com.srapp.core.ui.theme.GradientVioletStart
 import com.srapp.core.ui.theme.NeonCyan
+import com.srapp.data.DashboardData
 import com.srapp.data.LocalRepository
 
 private val weekLabels = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 
 @Composable
-fun StatsScreen(repository: LocalRepository) {
+fun StatsScreen(
+    repository: LocalRepository,
+    onBack: () -> Unit = {}
+) {
     var focusHoursThisWeek by remember { mutableStateOf(List(7) { 0f }) }
+    var dashData by remember { mutableStateOf<DashboardData?>(null) }
+
     LaunchedEffect(Unit) {
         focusHoursThisWeek = repository.focusHoursLastWeek()
+        dashData = runCatching { repository.dashboard() }.getOrNull()
     }
+
+    val streakDays = dashData?.pornFreeStreak ?: 1
+    val weeklyFocusTotal = focusHoursThisWeek.sum()
+    val totalReclaimedHours = (streakDays * 2) + weeklyFocusTotal.toInt()
+    val daysReclaimed = String.format(java.util.Locale.US, "%.1f", totalReclaimedHours / 24.0)
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(20.dp)
     ) {
-        SectionHeader(title = "Your Progress")
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(
+                    Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Back",
+                    tint = MaterialTheme.colorScheme.onBackground
+                )
+            }
+            Spacer(Modifier.width(4.dp))
+            SectionHeader(title = "Your Progress")
+        }
         Spacer(Modifier.height(16.dp))
 
         GradientCard(
@@ -53,7 +79,7 @@ fun StatsScreen(repository: LocalRepository) {
             Column {
                 Text("TIME RECLAIMED", style = MaterialTheme.typography.labelLarge, color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.85f))
                 Row(verticalAlignment = Alignment.Bottom) {
-                    CountUpText(targetValue = 270, color = androidx.compose.ui.graphics.Color.White)
+                    CountUpText(targetValue = totalReclaimedHours.coerceAtLeast(2), color = androidx.compose.ui.graphics.Color.White)
                     Text(
                         " hours",
                         style = MaterialTheme.typography.titleLarge,
@@ -62,7 +88,7 @@ fun StatsScreen(repository: LocalRepository) {
                     )
                 }
                 Text(
-                    "That's 11.25 days of your life back since you started.",
+                    "That's $daysReclaimed days of your life back since you started.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.85f)
                 )

@@ -48,12 +48,17 @@ private fun defaultHabits() = listOf(
 fun HabitsScreen(repository: LocalRepository) {
     val context = LocalContext.current
     val soundscape = remember { SoundscapeEngine.get(context) }
+    val customHabitsList by repository.customHabits.collectAsState(initial = emptyList())
     var habits by remember { mutableStateOf(defaultHabits()) }
     var heatmapValues by remember { mutableStateOf(List(91) { 0f }) }
     val scope = rememberCoroutineScope()
-    LaunchedEffect(Unit) {
-        val remote = runCatching { repository.todayHabits() }.getOrNull() ?: return@LaunchedEffect
-        habits = habits.map { habit ->
+
+    LaunchedEffect(customHabitsList) {
+        val base = defaultHabits()
+        val customs = customHabitsList.map { (id, label) -> HabitItem(id, label, false) }
+        val all = base + customs.filter { custom -> base.none { it.id == custom.id } }
+        val remote = runCatching { repository.todayHabits() }.getOrNull() ?: emptyList()
+        habits = all.map { habit ->
             remote.find { it.habitType == habit.id }?.let { habit.copy(done = it.completed) } ?: habit
         }
         heatmapValues = runCatching { repository.habitHeatmap() }.getOrDefault(heatmapValues)
@@ -136,9 +141,13 @@ fun HabitsScreen(repository: LocalRepository) {
                 confirmButton = {
                     Button(
                         onClick = {
-                            if (newHabitTitle.isNotBlank()) {
+                            val title = newHabitTitle.trim()
+                            if (title.isNotBlank()) {
                                 val id = "custom_" + System.currentTimeMillis()
-                                habits = habits + HabitItem(id, newHabitTitle.trim(), false)
+                                habits = habits + HabitItem(id, title, false)
+                                scope.launch {
+                                    runCatching { repository.addCustomHabit(id, title) }
+                                }
                                 newHabitTitle = ""
                                 showAddDialog = false
                             }

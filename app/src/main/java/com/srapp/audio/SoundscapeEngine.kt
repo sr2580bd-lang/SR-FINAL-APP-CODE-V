@@ -306,6 +306,13 @@ class SoundscapeEngine private constructor(private val context: Context) {
                 }
             } catch (e: Exception) {
                 Log.d(tag, "Binaural playback exception: ${e.message}")
+            } finally {
+                try {
+                    activeAmbientTrack?.stop()
+                    activeAmbientTrack?.release()
+                } catch (e: Exception) {
+                    // ignore
+                }
             }
         }
     }
