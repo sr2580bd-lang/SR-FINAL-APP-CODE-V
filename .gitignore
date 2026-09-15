@@ -1,0 +1,28 @@
+# Android / Gradle
+.gradle/
+.kotlin/
+**/build/
+**/captures/
+**/.externalNativeBuild/
+**/.cxx/
+local.properties
+*.iml
+.idea/
+.vscode/
+*.class
+*.dex
+*.apk
+*.aab
+*.keystore
+*.jks
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Node / web (not needed here, but safe)
+node_modules/
+.npm/
+
+# Git
+.git/

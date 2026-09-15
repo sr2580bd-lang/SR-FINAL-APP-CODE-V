@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">SR App</string>
+    <string name="accessibility_service_description">
+        SR App uses this to detect when a blocked app opens, so it can show you an
+        intervention screen instead. It does not read personal content — it only
+        checks which app is in the foreground.
+    </string>
+</resources>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.SrApp" parent="android:Theme.DeviceDefault.NoActionBar">
+        <!-- Minimal shell for Compose app -->
+    </style>
+
+    <style name="Theme.SrApp.Intervention" parent="Theme.SrApp">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowIsTranslucent">true</item>
+    </style>
+</resources>
